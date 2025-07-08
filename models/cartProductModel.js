@@ -8,7 +8,8 @@ const cartProductSchema = mongoose.Schema({
     discount: String,
     final_price: Number,
     category:String,
-    userID:String
+    userID:String,
+    quantity:Number,
 },{
     versionKey:false
 })

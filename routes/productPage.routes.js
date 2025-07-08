@@ -28,45 +28,64 @@ productPageRouter.post("/addmany", async (req,res) => {
    }   
 });
 
-productPageRouter.get("/", async (req,res) => {
-   const {page,limit,sort ,search } = req.query;
+productPageRouter.get("/", async (req, res) => {
+   const { page = 1, limit = 10, sort, search, discount_lower, discount_heigher } = req.query;
    const skip = (page - 1) * limit;
-
+ 
    let obj = {};
-   
-    console.log("This is query:-",req.query);
-   for(let x in req.query){
-      if(x !=="page" && x !=="limit" && x !== "sort" && x !== "search"){
-        
-         obj[x] = req.query[x];
-         
-      }
+   for (let x in req.query) {
+     if (
+       x !== "page" &&
+       x !== "limit" &&
+       x !== "sort" &&
+       x !== "search" &&
+       x !== "discount_lower" &&
+       x !== "discount_heigher" &&
+       req.query[x] !== "null" &&
+       req.query[x] !== "" &&
+       req.query[x] !== undefined &&
+       req.query[x] !== "undefined"
+     ) {
+       obj[x] = req.query[x];
+     }
    }
-
-   console.log(sort);
-
-   let sorting = {};
-
-   if(sort === "asc"){
-      sorting =  {final_price: 1};
-   }else if(sort === "desc"){
-      sorting =  {final_price: -1};
+ 
+   let sorting = { _id: 1 };
+   if (sort === "asc") sorting = { final_price: 1 };
+   else if (sort === "desc") sorting = { final_price: -1 };
+ 
+   if (search) {
+     obj["product_title"] = { $regex: search, $options: "i" };
    }
-
-   if(search){
-      obj["product_title"] = { $regex: search, $options: 'i' } ;
-   }
-   
-   console.log(obj);
-
+ 
    try {
-      const data = await  ProductPageModel.find(obj).skip(skip).limit(limit).sort(sorting)
-      res.status(200).send(data);
+     let data = await ProductPageModel.find(obj).sort(sorting);
+ 
+     // Node.js discount filtering
+     const lower = Number(discount_lower);
+     const higher = Number(discount_heigher);
+ 
+     if (!isNaN(lower) || !isNaN(higher)) {
+       data = data.filter(item => {
+         const match = typeof item.discount === 'string' && item.discount.match(/([0-9]+)/);
+         const disc = match ? parseInt(match[1]) : null;
+         if (disc === null) return false;
+         if (!isNaN(lower) && !isNaN(higher)) return disc >= lower && disc <= higher;
+         if (!isNaN(lower)) return disc >= lower;
+         if (!isNaN(higher)) return disc <= higher;
+         return true;
+       });
+     }
+ 
+     // Pagination
+     data = data.slice(skip, skip + Number(limit));
+ 
+     res.status(200).send(data);
    } catch (error) {
-      console.log(error);
-      res.status(400).send({"msg":"Some error"});
-   }   
-});
+     console.error("Error in /productPage:", error);
+     res.status(400).send({ msg: error.message, stack: error.stack });
+   }
+ });
 
 productPageRouter.get('/search', async (req, res) => {
    const searchTerm = req.query.q;
